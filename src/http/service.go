@@ -10,16 +10,10 @@ import (
 	"strings"
 )
 
-// StoreKey is the Key type for the Store
-type StoreKey string
-
-// StoreValue is the Value type for the Store
-type StoreValue string
-
 type Store interface {
-	Get(key StoreKey) (StoreValue, error)
-	Set(key StoreKey, value StoreValue) error
-	Delete(key StoreKey) error
+	Get(key string) (string, error)
+	Set(key string, value string) error
+	Delete(key string) error
 }
 
 type Service struct {
@@ -67,16 +61,16 @@ func (s *Service) Close() error {
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// refactor this into something more usable
-	getKeyFromRequest := func() StoreKey {
+	getKeyFromRequest := func() string {
 		parts := strings.Split(r.URL.Path, "/")
 
 		if len(parts) != 3 {
 			// base path is "/key"
-			return StoreKey("")
+			return string("")
 		}
 
 		// what happens to /key/foo/bar/baz???
-		return StoreKey(parts[2])
+		return string(parts[2])
 	}
 
 	switch r.Method {
@@ -93,7 +87,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		b, err := json.Marshal(map[StoreKey]StoreValue{k: v})
+		b, err := json.Marshal(map[string]string{k: v})
 
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -109,7 +103,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		m := map[StoreKey]StoreValue{}
+		m := map[string]string{}
 
 		if err := json.Unmarshal(b, &m); err != nil {
 			w.WriteHeader(http.StatusBadRequest)

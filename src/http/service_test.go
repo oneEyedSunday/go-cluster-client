@@ -21,12 +21,12 @@ func (t *testServer) URL() string {
 }
 
 type testStore struct {
-	m map[StoreKey]StoreValue
+	m map[string]string
 }
 
 func newTestStore() *testStore {
 	return &testStore{
-		m: make(map[StoreKey]StoreValue),
+		m: make(map[string]string),
 	}
 }
 
@@ -69,16 +69,16 @@ func Test_NewServer(t *testing.T) {
 	}
 }
 
-func (t *testStore) Get(key StoreKey) (StoreValue, error) {
+func (t *testStore) Get(key string) (string, error) {
 	return t.m[key], nil
 }
 
-func (t *testStore) Set(key StoreKey, value StoreValue) error {
+func (t *testStore) Set(key string, value string) error {
 	t.m[key] = value
 	return nil
 }
 
-func (t *testStore) Delete(key StoreKey) error {
+func (t *testStore) Delete(key string) error {
 	delete(t.m, key)
 	return nil
 }
