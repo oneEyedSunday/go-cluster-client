@@ -78,6 +78,17 @@ func (s *RaftStore) Open(enableSingle bool) error {
 	// Create raft log.
 	ra, err := raft.NewRaft(config, s, logStore, logStore, snapshots, transport)
 
+	if enableSingle {
+		ra.BootstrapCluster(raft.Configuration{
+			Servers: []raft.Server{
+				{
+					ID:      config.LocalID,
+					Address: raft.ServerAddress(transport.LocalAddr()),
+				},
+			},
+		})
+	}
+
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}

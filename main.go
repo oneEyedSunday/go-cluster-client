@@ -33,6 +33,11 @@ func main() {
 	cfg.httpAddr = *fs.String("httpAddr", DefaultHTTPAddr, "Set HTTP bind address")
 	fs.StringVar(&cfg.raftAddr, "raftAddr", DefaultRaftAddr, "Set Raft bind address")
 	fs.StringVar(&cfg.raftDir, "raftDir", "/tmp/raft", "Set storage path for Raft")
+	flag.StringVar(&cfg.joinAddr, "joinDir", "", "Set join address, if any")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] <raft-data-path> \n", os.Args[0])
+		flag.PrintDefaults()
+	}
 
 	err := fs.Parse(os.Args)
 	if err != nil {
@@ -60,7 +65,9 @@ func main() {
 
 	n := httpd.New(cfg.httpAddr, s)
 
-	fmt.Print(n)
+	if err = n.Start(); err != nil {
+		log.Fatalf("failed to start server %s", err.Error())
+	}
 
 	log.Println("hraft started successfully")
 
