@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -30,18 +31,20 @@ type RaftStore struct {
 	mu          sync.Mutex
 	m           map[string]string
 
-	raft *raft.Raft // The consensus mechanism
+	raft   *raft.Raft // The consensus mechanism
+	logger *log.Logger
 }
 
 func New(raftBind, raftDir string) *RaftStore {
 	return &RaftStore{
-		rBind: raftBind,
-		rDir:  raftDir,
-		m:     make(map[string]string),
+		rBind:  raftBind,
+		rDir:   raftDir,
+		m:      make(map[string]string),
+		logger: log.New(os.Stdout, "[store] ", log.LstdFlags),
 	}
 }
 
-func (s *RaftStore) Open() error {
+func (s *RaftStore) Open(enableSingle bool) error {
 	config := raft.DefaultConfig()
 
 	// Setup Raft communication.
@@ -54,6 +57,8 @@ func (s *RaftStore) Open() error {
 	if err != nil {
 		return err
 	}
+
+	config.LocalID = raft.ServerID(transport.LocalAddr())
 
 	// Create peer storage.
 	// peerStore := raft.NewJSONPeers("/tmp/raft/log.json", transport)
@@ -113,6 +118,18 @@ func (s *RaftStore) Set(key, value string) error {
 }
 
 func (s *RaftStore) Delete(key string) error {
+	return nil
+}
+
+func (s *RaftStore) Join(addr string) error {
+	s.logger.Printf("received join request for remote node as %s", addr)
+
+	f := s.raft.AddPeer(raft.ServerAddress(addr))
+	if f.Error() != nil {
+		return f.Error()
+	}
+
+	s.logger.Printf("node at %s joined successfully", addr)
 	return nil
 }
 

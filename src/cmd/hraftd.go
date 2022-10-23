@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	httpd "github.com/oneeyedsunday/go-cluster-client/src/http"
@@ -15,8 +18,8 @@ type config struct {
 }
 
 const (
-	DefaultHTTPAddr = ":11000"
-	DefaultRaftAddr = ":11001"
+	DefaultHTTPAddr = "127.0.0.1:11000"
+	DefaultRaftAddr = "127.0.0.1:12000"
 )
 
 // Flag set
@@ -44,8 +47,15 @@ func main() {
 	os.MkdirAll(cfg.raftDir, 0700)
 
 	s := store.New(cfg.raftAddr, cfg.raftDir)
-	if err := s.Open(); err != nil {
+	if err := s.Open(cfg.joinAddr != ""); err != nil {
 		log.Fatalf("failed to open store: %s", err.Error())
+	}
+
+	// if theres a join address, make the join request
+	if *&cfg.joinAddr != "" {
+		if err := join(cfg.joinAddr, cfg.raftAddr); err != nil {
+			log.Fatalf("failed to join node at %s: %s", cfg.joinAddr, err.Error())
+		}
 	}
 
 	n := httpd.New(cfg.httpAddr, s)
@@ -55,4 +65,20 @@ func main() {
 	log.Println("hraft started successfully")
 
 	select {}
+}
+
+func join(joinAddr, raftAddr string) error {
+	b, err := json.Marshal(map[string]string{"addr": raftAddr})
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(fmt.Sprintf("http://%s/join", joinAddr), "application-type/json", bytes.NewReader((b)))
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	return nil
 }
