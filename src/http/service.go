@@ -74,18 +74,21 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		log.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	m := map[string]string{}
 	if err := json.Unmarshal(b, &m); err != nil {
+		log.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// empty map / request
 	if len(m) != 1 {
+		log.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -155,6 +158,7 @@ func (s *Service) handleKeyOps(w http.ResponseWriter, r *http.Request) {
 
 		for k, v := range m {
 			if err := s.store.Set(k, v); err != nil {
+				log.Println(err.Error())
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
