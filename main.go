@@ -76,7 +76,7 @@ func main() {
 	// if theres a join address, make the join request
 	if cfg.joinAddr != "" {
 		fmt.Println("attemptoing to join")
-		if err := join(cfg.joinAddr, cfg.raftAddr); err != nil {
+		if err := join(cfg); err != nil {
 			log.Fatalf("failed to join node at %s: %s", cfg.joinAddr, err.Error())
 		}
 	}
@@ -99,16 +99,16 @@ func main() {
 	log.Println("hraft exiting")
 }
 
-func join(joinAddr, raftAddr string) error {
-	b, err := json.Marshal(map[string]string{"addr": raftAddr})
+func join(cfg config) error {
+	b, err := json.Marshal(map[string]string{"addr": cfg.raftAddr, "id": cfg.nodeID})
 	if err != nil {
 		fmt.Println("error marshalling")
 		return err
 	}
 
-	log.Printf("attempting to join node %s from %s\n", joinAddr, raftAddr)
+	log.Printf("attempting to join node %s from %s\n", cfg.joinAddr, cfg.raftAddr)
 
-	resp, err := http.Post(fmt.Sprintf("http://%s/join", joinAddr), "application-type/json", bytes.NewReader((b)))
+	resp, err := http.Post(fmt.Sprintf("http://%s/join", cfg.joinAddr), "application-type/json", bytes.NewReader((b)))
 	if err != nil {
 		return err
 	}

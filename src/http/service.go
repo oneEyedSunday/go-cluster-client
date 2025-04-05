@@ -16,8 +16,8 @@ type Store interface {
 	Get(key string) (string, error)
 	Set(key string, value string) error
 	Delete(key string) error
-	// Join joins the node reachable at addr to the cluster
-	Join(addr string) error
+	// Join joins the node reachable at addr and identified by nodeID to the cluster
+	Join(nodeID, addr string) error
 	// Status shows who i am, who the leader is, and the followers (if any)
 	Status() (store.StoreStatus, error)
 }
@@ -106,7 +106,13 @@ func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.store.Join(remoteAddr); err != nil {
+	nodeID, ok := m["id"]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := s.store.Join(nodeID, remoteAddr); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

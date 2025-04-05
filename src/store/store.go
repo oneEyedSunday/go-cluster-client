@@ -150,7 +150,7 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 				},
 			},
 		}).Error(); err != nil {
-			s.logger.Fatal(err)
+			s.logger.Println(err)
 		}
 	}
 
@@ -207,11 +207,43 @@ func (s *RaftStore) Delete(key string) error {
 	f := s.raft.Apply(b, raftTimeout)
 	return f.Error()
 }
+func (s *RaftStore) getRaftConfig() (raft.ConfigurationFuture, error) {
+	rConfig := s.raft.GetConfiguration()
+	err := rConfig.Error()
+	if err != nil {
+		s.logger.Printf("failed to get raft configuration: %v", err)
+		return nil, err
+	}
 
-func (s *RaftStore) Join(addr string) error {
+	return rConfig, err
+}
+
+func (s *RaftStore) Join(nodeID, addr string) error {
 	s.logger.Printf("received join request for remote node as %s", addr)
 
-	f := s.raft.AddVoter(raft.ServerID(addr), raft.ServerAddress(addr), 0, 0)
+	rConfig, err := s.getRaftConfig()
+	if err != nil {
+		s.logger.Printf("failed to get raft configuration: %v", err)
+		return err
+	}
+
+	for _, srv := range rConfig.Configuration().Servers {
+		serverRaftAddr, serverRaftID := raft.ServerAddress(addr), raft.ServerID(nodeID)
+		// need to watch for nodes rejoining
+		if srv.ID == serverRaftID || srv.Address == serverRaftAddr {
+			// if same ID and address, we need do nothing
+			if srv.Address == serverRaftAddr && srv.ID == serverRaftID {
+				s.logger.Panicf("node %s at %s already member of cluster, ignoring join request", nodeID, addr)
+				return nil
+			}
+
+			if err := s.raft.RemoveServer(srv.ID, 0, 0).Error(); err != nil {
+				return fmt.Errorf("error removing existiing node %s at %s: %s", nodeID, addr, err.Error())
+			}
+		}
+	}
+
+	f := s.raft.AddVoter(raft.ServerID(nodeID), raft.ServerAddress(addr), 0, 0)
 	if f.Error() != nil {
 		return f.Error()
 	}
@@ -231,7 +263,12 @@ func (f *RaftStore) Status() (StoreStatus, error) {
 		Address: f.rBind,
 	}
 
-	servers := f.raft.GetConfiguration().Configuration().Servers
+	rConfig, err := f.getRaftConfig()
+	if err != nil {
+		f.logger.Printf("failed to get raft configuration: %v", err)
+		return StoreStatus{}, err
+	}
+	servers := rConfig.Configuration().Servers
 	followers := make([]Node, 0, len(servers))
 
 	for _, server := range servers {
