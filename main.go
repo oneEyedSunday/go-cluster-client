@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	httpd "github.com/oneeyedsunday/go-cluster-client/src/http"
 	"github.com/oneeyedsunday/go-cluster-client/src/store"
@@ -15,6 +17,7 @@ import (
 
 type config struct {
 	httpAddr, raftAddr, joinAddr, raftDir, nodeID string
+	inmem                                         bool
 }
 
 const (
@@ -22,20 +25,26 @@ const (
 	DefaultRaftAddr = "127.0.0.1:12000"
 )
 
-func main() {
-	var cfg config
+var cfg config
 
+func initConfig() {
 	flag.StringVar(&cfg.httpAddr, "httpAddr", DefaultHTTPAddr, "Set HTTP bind address")
 	flag.StringVar(&cfg.raftAddr, "raftAddr", DefaultRaftAddr, "Set Raft bind address")
 	flag.StringVar(&cfg.nodeID, "nodeId", "", "Node Id")
 	flag.StringVar(&cfg.raftDir, "raftDir", "/tmp/raft", "Set storage path for Raft")
 	flag.StringVar(&cfg.joinAddr, "joinAddr", "", "Set join address, if any")
+	flag.BoolVar(&cfg.inmem, "inmem", false, "Use in-memory storage for Raft")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] <raft-data-path> \n", os.Args[0])
 		flag.PrintDefaults()
 	}
 
 	flag.Parse()
+}
+
+func main() {
+
+	initConfig()
 
 	fmt.Printf("Running with config: %v\n", cfg)
 
@@ -54,7 +63,7 @@ func main() {
 	os.MkdirAll(cfg.raftDir, 0700)
 
 	fmt.Println("before new store")
-	s := store.New(cfg.raftAddr, cfg.raftDir)
+	s := store.New(cfg.raftAddr, cfg.raftDir, cfg.inmem)
 	fmt.Println("after new store")
 	if err := s.Open(cfg.nodeID, cfg.joinAddr == ""); err != nil {
 		log.Fatalf("failed to open store: %s", err.Error())
@@ -80,9 +89,14 @@ func main() {
 		log.Fatalf("failed to start server %s", err.Error())
 	}
 
-	log.Println("hraft started successfully")
+	log.Printf("hraft started successfully, listening on http://%s\n", cfg.httpAddr)
 
-	select {}
+	acabar := make(chan os.Signal, 1)
+	signal.Notify(acabar, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	<-acabar
+
+	log.Println("hraft exiting")
 }
 
 func join(joinAddr, raftAddr string) error {

@@ -32,7 +32,7 @@ type RaftStore struct {
 	rDir, rBind string
 	inmem       bool
 	mu          sync.Mutex
-	// +checklocks:mu
+
 	m map[string]string
 
 	raft   *raft.Raft // The consensus mechanism
@@ -54,7 +54,7 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 	config.LocalID = raft.ServerID(localID)
 
 	config.HeartbeatTimeout = time.Duration(2 * time.Second)
-	// fmt.Println(config.HeartbeatTimeout)
+	config.ElectionTimeout = time.Duration(2 * time.Second)
 
 	// Setup Raft communication.
 	addr, err := net.ResolveTCPAddr("tcp", s.rBind)
