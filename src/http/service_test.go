@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -37,10 +37,6 @@ func Test_NewServer(t *testing.T) {
 	// store := new(testStore)
 	store := newTestStore()
 	s := &testServer{New(":0", store)}
-
-	if s == nil {
-		t.Fatal("failed to create HTTP service")
-	}
 
 	if err := s.Start(); err != nil {
 		t.Fatalf("failed to start HTTP service: %s", err)
@@ -100,7 +96,7 @@ func doGet(t *testing.T, url, key string) string {
 	}
 
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("failed to read response: %s", err)
 	}

@@ -59,29 +59,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("after radtfdir")
 	os.MkdirAll(cfg.raftDir, 0700)
 
-	fmt.Println("before new store")
 	s := store.New(cfg.raftAddr, cfg.raftDir, cfg.inmem)
-	fmt.Println("after new store")
 	if err := s.Open(cfg.nodeID, cfg.joinAddr == ""); err != nil {
 		log.Fatalf("failed to open store: %s", err.Error())
 	}
 
-	fmt.Println("after store open")
-
-	fmt.Println("here we go", cfg.joinAddr, cfg.joinAddr != "")
-
 	// if theres a join address, make the join request
 	if cfg.joinAddr != "" {
-		fmt.Println("attemptoing to join")
 		if err := join(cfg); err != nil {
 			log.Fatalf("failed to join node at %s: %s", cfg.joinAddr, err.Error())
 		}
 	}
 
-	fmt.Println("after rjoin")
+	// TODO sanely remove servers on exit
 
 	n := httpd.New(cfg.httpAddr, s)
 
@@ -102,7 +94,6 @@ func main() {
 func join(cfg config) error {
 	b, err := json.Marshal(map[string]string{"addr": cfg.raftAddr, "id": cfg.nodeID})
 	if err != nil {
-		fmt.Println("error marshalling")
 		return err
 	}
 

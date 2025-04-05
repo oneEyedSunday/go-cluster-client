@@ -78,25 +78,18 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 		return err
 	}
 
-	// fmt.Println(addr)
-
 	transport, err := raft.NewTCPTransport(s.rBind, addr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err
 	}
 
-	// fmt.Println(transport)
-
 	config.LocalID = raft.ServerID(transport.LocalAddr())
-
-	// fmt.Printf("config.LocalID is %s while localId is %s\n", config.LocalID, localID)
 
 	// Create peer storage.
 	// peerStore := raft.NewJSONPeers("/tmp/raft/log.json", transport)
 
 	// Create the log store and stable store.
 
-	fmt.Println("creating logStore")
 	var logStore raft.LogStore
 	var stableStore raft.StableStore
 	if s.inmem {
@@ -112,7 +105,6 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 		})
 
 		if err != nil {
-			fmt.Println("fail to create log")
 			return fmt.Errorf("new bolt store: %s", err)
 		}
 
@@ -120,15 +112,11 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 		stableStore = boltDB
 	}
 
-	fmt.Println("after logStore")
-
 	// Create the snapshot store.
 	snapshots, err := raft.NewFileSnapshotStore(s.rDir, retainSnapshotCount, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("file snapshot store: %s", err)
 	}
-
-	fmt.Println("after snapshot")
 
 	// Create raft subsystem.
 	ra, err := raft.NewRaft(config, s, logStore, stableStore, snapshots, transport)
@@ -138,10 +126,8 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 		return fmt.Errorf("new raft: %s", err)
 	}
 
-	fmt.Println("before enableSIngle")
-
 	if enableSingle {
-		s.logger.Println("ENabling single mode")
+		s.logger.Println("Enabling single mode")
 		if err := ra.BootstrapCluster(raft.Configuration{
 			Servers: []raft.Server{
 				{

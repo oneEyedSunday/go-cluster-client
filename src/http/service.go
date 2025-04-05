@@ -3,7 +3,6 @@ package httpd
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -78,24 +77,16 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
-	log.Println("inside join")
-	b, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
 	m := map[string]string{}
-	if err := json.Unmarshal(b, &m); err != nil {
+
+	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// empty map / request
-	if len(m) != 1 {
-		log.Println(err)
+	if len(m) != 2 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -180,18 +171,12 @@ func (s *Service) handleKeyOps(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		io.WriteString(w, string(b))
+		io.Writer.Write(w, b)
 	case "POST":
 		// Read the value from the POST body.
-		b, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
 		m := map[string]string{}
 
-		if err := json.Unmarshal(b, &m); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -217,7 +202,6 @@ func (s *Service) handleKeyOps(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
-	return
 }
 
 func (s *Service) Addr() net.Addr {
