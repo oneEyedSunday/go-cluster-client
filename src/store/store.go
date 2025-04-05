@@ -211,7 +211,7 @@ func (s *RaftStore) Delete(key string) error {
 func (s *RaftStore) Join(addr string) error {
 	s.logger.Printf("received join request for remote node as %s", addr)
 
-	f := s.raft.AddPeer(raft.ServerAddress(addr))
+	f := s.raft.AddVoter(raft.ServerID(addr), raft.ServerAddress(addr), 0, 0)
 	if f.Error() != nil {
 		return f.Error()
 	}
