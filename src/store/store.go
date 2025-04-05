@@ -23,12 +23,25 @@ const (
 	raftTimeout         = 5 * time.Second
 )
 
-var notLeaderErr = errors.New("not leader")
+var errNotLeader = errors.New("not leader")
 
 type command struct {
 	Op    string `json:"op,omitempty"`
 	Key   string `json:"key,omitempty"`
 	Value string `json:"value,omitempty"`
+}
+
+// Node represents a node in the cluster.
+type Node struct {
+	ID      string `json:"id"`
+	Address string `json:"address"`
+}
+
+// StoreStatus represents a status of the Store
+type StoreStatus struct {
+	Me        Node   `json:"me"`
+	Leader    Node   `json:"leader"`
+	Followers []Node `json:"followers"`
 }
 
 type RaftStore struct {
@@ -154,7 +167,7 @@ func (s *RaftStore) Get(key string) (string, error) {
 
 func (s *RaftStore) Set(key, value string) error {
 	if s.raft.State() != raft.Leader {
-		return notLeaderErr
+		return errNotLeader
 	}
 
 	c := &command{
@@ -178,7 +191,7 @@ func (s *RaftStore) Set(key, value string) error {
 
 func (s *RaftStore) Delete(key string) error {
 	if s.raft.State() != raft.Leader {
-		return notLeaderErr
+		return errNotLeader
 	}
 
 	c := &command{
@@ -205,6 +218,36 @@ func (s *RaftStore) Join(addr string) error {
 
 	s.logger.Printf("node at %s joined successfully", addr)
 	return nil
+}
+
+func (f *RaftStore) Status() (StoreStatus, error) {
+	leaderServerAddr, leaderId := f.raft.LeaderWithID()
+	leader := Node{
+		ID:      string(leaderId),
+		Address: string(leaderServerAddr),
+	}
+
+	me := Node{
+		Address: f.rBind,
+	}
+
+	servers := f.raft.GetConfiguration().Configuration().Servers
+	followers := make([]Node, 0, len(servers))
+
+	for _, server := range servers {
+		if server.ID != leaderId {
+			followers = append(followers, Node{
+				ID:      string(server.ID),
+				Address: string(server.Address),
+			})
+		}
+
+		if string(server.Address) == f.rBind {
+			me.ID = string(server.ID) // no need to create new object
+		}
+	}
+
+	return StoreStatus{Leader: leader, Me: me, Followers: followers}, nil
 }
 
 // Apply applies a Raft log entry to the k-v store.

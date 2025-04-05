@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/oneeyedsunday/go-cluster-client/src/store"
 )
 
 type testServer struct {
@@ -85,6 +87,10 @@ func (t *testStore) Delete(key string) error {
 
 func (t *testStore) Join(addr string) error {
 	return nil
+}
+
+func (t *testStore) Status() (store.StoreStatus, error) {
+	return store.StoreStatus{}, nil
 }
 
 func doGet(t *testing.T, url, key string) string {

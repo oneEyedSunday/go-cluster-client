@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/oneeyedsunday/go-cluster-client/src/store"
 )
 
 type Store interface {
@@ -16,6 +18,8 @@ type Store interface {
 	Delete(key string) error
 	// Join joins the node reachable at addr to the cluster
 	Join(addr string) error
+	// Status shows who i am, who the leader is, and the followers (if any)
+	Status() (store.StoreStatus, error)
 }
 
 type Service struct {
@@ -66,12 +70,15 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleKeyOps(w, r)
 	} else if r.URL.Path == "/join" {
 		s.handleJoin(w, r)
+	} else if r.URL.Path == "/status" {
+		s.handleStatus(w, r)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
 func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
+	log.Println("inside join")
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Println(err)
@@ -101,6 +108,33 @@ func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.store.Join(remoteAddr); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Service) handleStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+
+	status, err := s.store.Status()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	statusJson, err := json.Marshal(status)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write(statusJson)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
