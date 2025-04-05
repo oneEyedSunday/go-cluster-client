@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -21,6 +22,8 @@ const (
 	retainSnapshotCount = 3
 	raftTimeout         = 5 * time.Second
 )
+
+var notLeaderErr = errors.New("not leader")
 
 type command struct {
 	Op    string `json:"op,omitempty"`
@@ -151,7 +154,7 @@ func (s *RaftStore) Get(key string) (string, error) {
 
 func (s *RaftStore) Set(key, value string) error {
 	if s.raft.State() != raft.Leader {
-		return fmt.Errorf("not leader")
+		return notLeaderErr
 	}
 
 	c := &command{
@@ -174,7 +177,22 @@ func (s *RaftStore) Set(key, value string) error {
 }
 
 func (s *RaftStore) Delete(key string) error {
-	return nil
+	if s.raft.State() != raft.Leader {
+		return notLeaderErr
+	}
+
+	c := &command{
+		Op:  "delete",
+		Key: key,
+	}
+
+	b, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+
+	f := s.raft.Apply(b, raftTimeout)
+	return f.Error()
 }
 
 func (s *RaftStore) Join(addr string) error {
@@ -189,6 +207,7 @@ func (s *RaftStore) Join(addr string) error {
 	return nil
 }
 
+// Apply applies a Raft log entry to the k-v store.
 func (f *RaftStore) Apply(l *raft.Log) interface{} {
 	var c command
 	if err := json.Unmarshal(l.Data, &c); err != nil {
@@ -205,11 +224,33 @@ func (f *RaftStore) Apply(l *raft.Log) interface{} {
 	}
 }
 
+type fsmSnapshot struct {
+	store map[string]string
+}
+
 func (f *RaftStore) Snapshot() (raft.FSMSnapshot, error) {
-	return nil, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Clone the data
+	o := make(map[string]string)
+	for k, v := range f.m {
+		o[k] = v
+	}
+
+	return &fsmSnapshot{store: o}, nil
 }
 
 func (f *RaftStore) Restore(rc io.ReadCloser) error {
+	o := make(map[string]string)
+
+	if err := json.NewDecoder(rc).Decode(&o); err != nil {
+		return err
+	}
+
+	// err, why are not locking??
+	// https://github.com/otoolep/hraftd/blob/master/store/store.go#L295
+	f.m = o
 	return nil
 }
 
@@ -225,4 +266,28 @@ func (f *RaftStore) applyDelete(key string) interface{} {
 	defer f.mu.Unlock()
 	delete(f.m, key)
 	return nil
+}
+
+func (f *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
+	err := func() error {
+		b, err := json.Marshal(f.store)
+		if err != nil {
+			return err
+		}
+
+		if _, err := sink.Write(b); err != nil {
+			return err
+		}
+		return sink.Close()
+	}()
+
+	if err != nil {
+		sink.Cancel()
+	}
+
+	return err
+}
+
+func (f *fsmSnapshot) Release() {
+	log.Println("releasing snapshot")
 }
