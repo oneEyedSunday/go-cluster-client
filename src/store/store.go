@@ -7,10 +7,14 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/boltdb/bolt"
 	"github.com/hashicorp/raft"
+
+	raftBoltDb "github.com/hashicorp/raft-boltdb"
 )
 
 const (
@@ -26,18 +30,21 @@ type command struct {
 
 type RaftStore struct {
 	rDir, rBind string
+	inmem       bool
 	mu          sync.Mutex
-	m           map[string]string
+	// +checklocks:mu
+	m map[string]string
 
 	raft   *raft.Raft // The consensus mechanism
 	logger *log.Logger
 }
 
-func New(raftBind, raftDir string) *RaftStore {
+func New(raftBind, raftDir string, inmem bool) *RaftStore {
 	return &RaftStore{
 		rBind:  raftBind,
 		rDir:   raftDir,
 		m:      make(map[string]string),
+		inmem:  inmem,
 		logger: log.New(os.Stdout, "[store] ", log.LstdFlags),
 	}
 }
@@ -46,7 +53,7 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(localID)
 
-	// config.HeartbeatTimeout = time.Duration(2 * time.Second)
+	config.HeartbeatTimeout = time.Duration(2 * time.Second)
 	// fmt.Println(config.HeartbeatTimeout)
 
 	// Setup Raft communication.
@@ -64,7 +71,7 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 
 	// fmt.Println(transport)
 
-	// config.LocalID = raft.ServerID(transport.LocalAddr())
+	config.LocalID = raft.ServerID(transport.LocalAddr())
 
 	// fmt.Printf("config.LocalID is %s while localId is %s\n", config.LocalID, localID)
 
@@ -74,17 +81,27 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 	// Create the log store and stable store.
 
 	fmt.Println("creating logStore")
-	// logStore, err := raftBoltDb.New(raftBoltDb.Options{
-	// 	Path: filepath.Join(s.rDir, "raft.db"),
-	// 	BoltOptions: &bolt.Options{
-	// 		Timeout: time.Duration(time.Second * 10),
-	// 	},
-	// })
-	// logStore, err := raftBoltDb.NewBoltStore(filepath.Join(s.rDir, "raft.db"))
-	logStore := raft.NewInmemStore()
-	if err != nil {
-		fmt.Println("fail to create log")
-		return fmt.Errorf("new bolt store: %s", err)
+	var logStore raft.LogStore
+	var stableStore raft.StableStore
+	if s.inmem {
+		logStore = raft.NewInmemStore()
+		stableStore = raft.NewInmemStore()
+	} else {
+		boltDB, err := raftBoltDb.New(raftBoltDb.Options{
+			Path: filepath.Join(s.rDir, "raft.db"),
+			BoltOptions: &bolt.Options{
+				Timeout: time.Duration(time.Second * 10),
+				// ReadOnly: true,
+			},
+		})
+
+		if err != nil {
+			fmt.Println("fail to create log")
+			return fmt.Errorf("new bolt store: %s", err)
+		}
+
+		logStore = boltDB
+		stableStore = boltDB
 	}
 
 	fmt.Println("after logStore")
@@ -95,13 +112,13 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 		return fmt.Errorf("file snapshot store: %s", err)
 	}
 
-	fmt.Println("after snapchot")
+	fmt.Println("after snapshot")
 
-	// Create raft log.
-	ra, err := raft.NewRaft(config, s, logStore, logStore, snapshots, transport)
+	// Create raft subsystem.
+	ra, err := raft.NewRaft(config, s, logStore, stableStore, snapshots, transport)
 
 	if err != nil {
-		fmt.Printf("err witj newRaft")
+		fmt.Printf("err with newRaft")
 		return fmt.Errorf("new raft: %s", err)
 	}
 
