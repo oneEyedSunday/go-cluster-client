@@ -7,7 +7,9 @@ import (
 )
 
 func Test_StoreOpen(t *testing.T) {
-	s := New("127.0.0.1:8088", "/tmp/raft", false)
+	tmpDir, _ := os.MkdirTemp("", "store_test")
+	defer os.RemoveAll(tmpDir)
+	s := New("127.0.0.1:8088", tmpDir, false)
 	if s == nil {
 		t.Fatalf("failed to create store")
 	}
@@ -74,7 +76,7 @@ func Test_StoreSingleNode(t *testing.T) {
 	assertOps(t, s)
 }
 
-func Test_StaoreStatus(t *testing.T) {
+func Test_StoreStatus(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "store_test")
 	defer os.RemoveAll(tmpDir)
 	s := New("127.0.0.1:0", tmpDir, false)
