@@ -129,7 +129,7 @@ func doDelete(t *testing.T, u, key string) {
 	}
 
 	req := &http.Request{
-		Method: "DLEETE",
+		Method: "DELETE",
 		URL:    ru,
 	}
 
