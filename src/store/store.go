@@ -83,8 +83,6 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 		return err
 	}
 
-	config.LocalID = raft.ServerID(transport.LocalAddr())
-
 	// Create peer storage.
 	// peerStore := raft.NewJSONPeers("/tmp/raft/log.json", transport)
 
