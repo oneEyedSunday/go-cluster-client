@@ -65,6 +65,11 @@ func Test_NewServer(t *testing.T) {
 	if string(b) != `{"k2":""}` {
 		t.Fatalf("wrong value received for key k2: %s", string(b))
 	}
+
+	_, statraw := doStatus(t, s.URL())
+	if statraw != `{"me":{"id":"","address":""},"leader":{"id":"","address":""},"followers":null}` {
+		t.Fatalf("wrong status received: %s", statraw)
+	}
 }
 
 func (t *testStore) Get(key string) (string, error) {
@@ -129,7 +134,7 @@ func doDelete(t *testing.T, u, key string) {
 	}
 
 	req := &http.Request{
-		Method: "DLEETE",
+		Method: "DELETE",
 		URL:    ru,
 	}
 
@@ -145,4 +150,26 @@ func doDelete(t *testing.T, u, key string) {
 	// why not just
 	// http.Delete
 	// because it doesnt exist
+}
+
+func doStatus(t *testing.T, url string) (store.StoreStatus, string) {
+	resp, err := http.Get(fmt.Sprintf("%s/status", url))
+
+	if err != nil {
+		t.Fatalf("failed to GET status: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read response: %s", err)
+	}
+
+	var stat store.StoreStatus
+	err = json.Unmarshal(body, &stat)
+	if err != nil {
+		t.Fatalf("status is not a valid status json")
+	}
+
+	return stat, string(body)
 }
