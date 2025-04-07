@@ -12,10 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/boltdb/bolt"
 	"github.com/hashicorp/raft"
 
-	raftBoltDb "github.com/hashicorp/raft-boltdb"
+	"go.etcd.io/bbolt"
+
+	raftBoltDb "github.com/hashicorp/raft-boltdb/v2"
 )
 
 const (
@@ -96,14 +97,13 @@ func (s *RaftStore) Open(localID string, enableSingle bool) error {
 	} else {
 		boltDB, err := raftBoltDb.New(raftBoltDb.Options{
 			Path: filepath.Join(s.rDir, "raft.db"),
-			BoltOptions: &bolt.Options{
-				Timeout: time.Duration(time.Second * 10),
-				// ReadOnly: true,
+			BoltOptions: &bbolt.Options{
+				Timeout: time.Second * 10,
 			},
 		})
 
 		if err != nil {
-			return fmt.Errorf("new bolt store: %s", err)
+			return fmt.Errorf("new bbolt store: %s", err)
 		}
 
 		logStore = boltDB
